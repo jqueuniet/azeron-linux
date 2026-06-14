@@ -149,6 +149,18 @@ npx @electron/rebuild -f -w node-hid -m app -v "$ELECTRON_VERSION" 2>&1 || {
     error "Failed to rebuild node-hid for Electron $ELECTRON_VERSION"
 }
 
+# Backfill resolved+integrity into the lockfile. The asar-sourced node_modules
+# make npm reconstruct app/package-lock.json without registry metadata, leaving
+# most entries with a version but no resolved URL / integrity hash. That is
+# invisible to the online targets (deb/rpm/pacman/AppImage/Arch all `npm install`),
+# but the Nix package installs offline via fetchNpmDeps and needs a complete
+# lockfile. Restore it for the exact pinned versions (no version changes).
+echo ""
+echo "=== Backfilling package-lock.json (offline/Nix installs) ==="
+node "$PROJECT_DIR/scripts/backfill-package-lock.mjs" "$PROJECT_DIR/app/package-lock.json" || {
+    error "Failed to backfill package-lock.json (Nix package will not build offline)"
+}
+
 # Save unpatched backup (CI restores this before committing so committed source stays platform-neutral)
 cp "$PROJECT_DIR/app/dist/main-process.js" "$PROJECT_DIR/app/dist/main-process.js.unpatched"
 
